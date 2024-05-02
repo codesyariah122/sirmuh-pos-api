@@ -10,10 +10,8 @@
             font-family: 'Courier New', Courier, monospace;
             margin-top: .1rem;
             letter-spacing: 1px;
-        }
-
-        table td {
-            font-size: 13px;
+            font-size: 11px;
+            line-height: 5px;
         }
         table.data td,
         table.data th {
@@ -36,7 +34,7 @@
     </style>
 </head>
 <body>
-    <table width="100%" style="border-collapse: collapse; margin-top: -1rem;">
+    <table width="100%" style="border-collapse: collapse; margin-top: -.5rem;">
         <tr>
             <td style="vertical-align: top;">
                 Kepada
@@ -78,7 +76,7 @@
         </tr>
     </table>
     
-    <table class="data" width="100%" style="margin-top: -1rem;">
+    <table class="data" width="100%" style="margin-top: -.3rem;">
         <thead>
             <tr>
                 <th>Nama Barang</th>
@@ -145,7 +143,7 @@
         </tfoot>
     </table>
 
-    <table width="100%" style="margin-top: -.1rem;">
+    <table width="100%" style="margin-top: .5rem;">
         <tr>
             <td class="text-right">
                 <h4>Kasir</h4>
