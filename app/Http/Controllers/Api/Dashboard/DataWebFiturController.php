@@ -1389,6 +1389,9 @@ class DataWebFiturController extends Controller
             case "koreksi-stok":
             $generatedCode = "KS" . '-' . $currentDate . $randomNumber;
             break;
+            case "pemakaian-barang":
+            $generatedCode = "PEM" . '-' . $currentDate . $randomNumber;
+            break;
         }
 
         $data = [
@@ -1949,6 +1952,7 @@ public function update_item_penjualan(Request $request)
                 ->where('draft', 1)
                 ->first();
 
+
                 if($barang['harga_toko'] !== NULL) {
                     $harga = $barang['harga_toko'];
                 } else {
@@ -1990,7 +1994,7 @@ public function update_item_penjualan(Request $request)
             }
             return response()->json([
                 'draft' => true,
-                'message' => 'Draft item pembelian successfully updated!',
+                'message' => 'Draft item penjualan successfully updated!',
                 'data' => $kode,
                 'itempembelian_id' => $lastItemPembelianId
             ], 200);

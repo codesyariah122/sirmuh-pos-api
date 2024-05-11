@@ -321,6 +321,7 @@ class DataPembelianLangsungController extends Controller
             'itempembelian.*',
             'supplier.kode as kode_supplier',
             'supplier.nama as nama_supplier',
+            'supplier.alamat as alamat_supplier',
             'supplier.saldo_hutang as saldo_hutang',
             'supplier.alamat as alamat_supplier',
             'barang.nama as nama_barang',
@@ -342,11 +343,6 @@ class DataPembelianLangsungController extends Controller
             ->get()->sum('qty');
         }
         $setting = "";
-
-        // echo "<pre>";
-        // var_dump($orders);
-        // echo "</pre>";
-        // die;
 
         switch($type) {
             case "nota-kecil":
