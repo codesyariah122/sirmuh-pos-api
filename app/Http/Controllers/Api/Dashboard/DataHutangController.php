@@ -13,7 +13,7 @@ use Illuminate\Database\Eloquent\Collection;
 use App\Jobs\ProcessLargeRequest;
 use Illuminate\Pagination\LengthAwarePaginator;
 use App\Events\{EventNotification};
-use App\Models\{Toko, Hutang, Pembelian, ItemPembelian,PembayaranAngsuran,Kas,ItemHutang };
+use App\Models\{Toko, Hutang, Pembelian, ItemPembelian,PembayaranAngsuran,Kas,ItemHutang, Supplier};
 use App\Http\Resources\{ResponseDataCollect, RequestDataCollect};
 use App\Helpers\{UserHelpers, WebFeatureHelpers};
 use Auth;
@@ -79,7 +79,8 @@ class DataHutangController extends Controller
             $startOfMonth = $now->startOfMonth()->toDateString();
             $endOfMonth = $now->endOfMonth()->toDateString();
             $dateTransaction = $request->query('date_transaction');
-
+            $user = Auth::user();
+            
             $query = Hutang::select('hutang.id', 'hutang.kode', 'hutang.kd_beli', 'hutang.tanggal', 'hutang.supplier', 'hutang.jumlah', 'hutang.bayar', 'hutang.operator', 'pembelian.id as id_pembelian', 'pembelian.kode as kode_pembelian', 'pembelian.tanggal as tanggal_pembelian', 'pembelian.jt as jatuh_tempo', 'pembelian.kode as kode_pembelian', 'pembelian.lunas', 'pembelian.visa', 'itemhutang.kode as kode_item_hutang', 'itemhutang.kode_hutang','itemhutang.jumlah_hutang as jumlah_hutang', 'supplier.nama as nama_supplier')
             ->leftJoin('itemhutang', 'hutang.kode', '=', 'itemhutang.kode_hutang')
             ->leftJoin('supplier', 'hutang.supplier', '=', 'supplier.kode')
@@ -104,7 +105,12 @@ class DataHutangController extends Controller
                 $query->whereDate('hutang.tanggal', '=', $dateTransaction);
             }
 
-            $query->orderByDesc('hutang.id');
+            $query->orderByDesc('hutang.id')
+            ->where(function ($query) use ($user) {
+                if ($user->role !== 1) {
+                    $query->whereRaw('LOWER(hutang.operator) like ?', [strtolower('%' . $user->name . '%')]);
+                } 
+            });
 
             $hutangs = $query->paginate(10);
 
@@ -146,7 +152,7 @@ class DataHutangController extends Controller
     {
         try {
             $query =  Hutang::query()
-            ->select('hutang.*', 'itemhutang.jumlah_hutang', 'pembelian.kode as kode_pembelian', 'pembelian.jt as jatuh_tempo','pembelian.kode_kas','pembelian.jumlah as jumlah_pembelian', 'pembelian.diterima','pembelian.bayar', 'pembelian.visa','pembelian.lunas','pembelian.po', 'pembelian.hutang as sisa_hutang','supplier.id as id_supplier', 'supplier.kode as kode_supplier', 'supplier.nama as nama_supplier', 'itempembelian.nama_barang', 'itempembelian.kode_barang', 'itempembelian.qty as qty_pembelian', 'itempembelian.satuan as satuan_pembelian_barang', 'itempembelian.harga_beli as harga_beli','itempembelian.subtotal','barang.kategori', 'barang.kode as kode_barang', 'barang.kode_barcode as kode_barcode',  'kas.id as kas_id', 'kas.kode as kas_kode', 'kas.nama as kas_nama')
+            ->select('hutang.*', 'itemhutang.jumlah_hutang', 'pembelian.kode as kode_pembelian', 'pembelian.jt as jatuh_tempo','pembelian.jumlah as jumlah_pembelian', 'pembelian.diterima','pembelian.bayar', 'pembelian.visa','pembelian.lunas','pembelian.po', 'pembelian.hutang as sisa_hutang','supplier.id as id_supplier', 'supplier.kode as kode_supplier', 'supplier.nama as nama_supplier', 'supplier.alamat as alamat_supplier', 'itempembelian.nama_barang', 'itempembelian.kode_barang', 'itempembelian.qty as qty_pembelian', 'itempembelian.satuan as satuan_pembelian_barang', 'itempembelian.harga_beli as harga_beli','itempembelian.subtotal','barang.kategori', 'barang.kode as kode_barang', 'barang.kode_barcode as kode_barcode',  'kas.id as kas_id', 'kas.kode as kas_kode', 'kas.nama as kas_nama')
             ->leftJoin('pembelian', 'hutang.kd_beli', '=', 'pembelian.kode')
             ->leftJoin('supplier', 'hutang.supplier', '=', 'supplier.kode')
             ->leftJoin('itempembelian', 'itempembelian.kode', '=', 'pembelian.kode')
@@ -202,6 +208,8 @@ class DataHutangController extends Controller
                 return response()->json($validator->errors(), 400);
             }
 
+            $user = Auth::user();
+
             $query =  Hutang::query()
             ->select('hutang.*', 'pembelian.jt as jatuh_tempo','pembelian.kode_kas','pembelian.jumlah as jumlah_pembelian', 'pembelian.diterima','pembelian.bayar as bayar_pembelian', 'pembelian.visa','pembelian.lunas', 'supplier.id as id_supplier', 'supplier.kode as kode_supplier', 'supplier.nama as nama_supplier', 'itempembelian.nama_barang', 'itempembelian.kode_barang', 'itempembelian.qty as qty_pembelian', 'itempembelian.satuan as satuan_pembelian_barang', 'itempembelian.harga_beli as harga_beli', 'barang.kategori', 'barang.kode as kode_barang', 'barang.kode_barcode as kode_barcode',  'kas.id as kas_id', 'kas.kode as kas_kode', 'kas.nama as kas_nama', 'pembayaran_angsuran.tanggal as tanggal_angsuran', 'pembayaran_angsuran.angsuran_ke', 'pembayaran_angsuran.bayar_angsuran', 'pembayaran_angsuran.jumlah as jumlah_angsuran')
             ->leftJoin('pembelian', 'hutang.kd_beli', '=', 'pembelian.kode')
@@ -215,16 +223,23 @@ class DataHutangController extends Controller
 
             $bayar = intval($request->bayar);
             $jmlHutang = intval($hutang->jumlah);
-            $kasId = $request->kode_kas ? $request->kode_kas : $hutang->kode_kas;
+            $kasId = $request->kode_kas;
 
-            $dataKas = Kas::whereKode($kasId)->first();
+            if(gettype($kasId) === "string") {
+                $kodeKas = Kas::whereKode($kasId)->first();
+                $dataKas = Kas::findOrFail($kodeKas->id);
+            } else {
+                $dataKas = Kas::findOrFail($kasId);
+            }
 
             $checkAngsuran = PembayaranAngsuran::where('kode', $hutang->kode)
             ->get();
 
             if(count($checkAngsuran) > 0) {
                 $dataPembelian = Pembelian::whereKode($hutang->kd_beli)->first();
+                $supplier = Supplier::whereKode($hutang->supplier)->first();
                 $updatePembelian = Pembelian::findOrFail($dataPembelian->id);
+                $updateSupplier = Supplier::findOrFail($supplier->id);
                 $updatePembelian->bayar = intval($dataPembelian->bayar) + $bayar;
                 // $updatePembelian->diterima = intval($dataPembelian->diterima) + $bayar;
 
@@ -232,26 +247,37 @@ class DataHutangController extends Controller
                     $updatePembelian->lunas = "True";
                     $updatePembelian->visa = "LUNAS";
                     $updatePembelian->hutang = 0;
+                    $updateSupplier->saldo_hutang = 0;
                     if($dataPembelian->po === "True") {
                         // $updatePembelian->angsuran = $updatePembelian->bayar;
                         $updatePembelian->receive = "True";
                         $updatePembelian->kekurangan_sdh_dibayar = "True";
+                        $dataItemPembelian = ItemPembelian::whereKode($updatePembelian->kode)->first();
+                        $updateItemPembelian = ItemPembelian::findOrFail($dataItemPembelian->id);
+                        $updateItemPembelian->stop_qty = "True";
+                        $updateItemPembelian->save();
                     }
                 } else {
                     $updatePembelian->lunas = "False";
                     $updatePembelian->visa = "HUTANG";
                     $updatePembelian->hutang = intval($dataPembelian->hutang) - $bayar;
+                    $updateSupplier->saldo_hutang = intval($supplier->saldo_hutang) - $bayar;
                 }
+
                 $updatePembelian->save();
+                $updateSupplier->save();
 
                 $updateHutang = Hutang::findOrFail($hutang->id);
                 if($bayar >= $jmlHutang) {
-                    $updateHutang->jumlah = $bayar - $jmlHutang;
+                    $updateHutang->jumlah = 0;
                     $updateHutang->bayar = $bayar;
+                    $updateHutang->kembali = $request->kembali ? $request->kembali : $bayar - $jmlHutang;
                 } else {
                     $updateHutang->jumlah = $jmlHutang - $bayar;
                     $updateHutang->bayar = intval($hutang->bayar) + $bayar;
+                    $updateHutang->kembali = 0;
                 }
+                // $updateHutang->kode_kas = "{$dataKas->nama} ($dataKas->kode)";
                 $updateHutang->ket = $request->ket ?? "";
                 $updateHutang->save();
 
@@ -274,11 +300,19 @@ class DataHutangController extends Controller
                 $angsuran = new PembayaranAngsuran;
                 $angsuran->kode = $hutang->kode;
                 $angsuran->tanggal = $hutang->tanggal;
+                $angsuran->operator = $user->name;
                 $angsuran->angsuran_ke = $angsuranKeBaru;
+                $angsuran->kas = "{$dataKas->nama} ($dataKas->kode)";
+                $angsuran->kode_faktur = $updatePembelian->kode;
                 $angsuran->kode_pelanggan = NULL;
                 $angsuran->kode_faktur = NULL;
                 $angsuran->bayar_angsuran = $bayar;
-                $angsuran->jumlah = intval($angsuranTerakhir->jumlah) - $bayar;
+                if($bayar >= intval($angsuranTerakhir->jumlah)) {
+                    $angsuran->jumlah = 0;
+                } else { 
+                    $angsuran->jumlah = intval($angsuranTerakhir->jumlah) - $bayar;
+                }
+                $angsuran->keterangan = $request->keterangan;
                 $angsuran->save();
 
                 $notifEvent =  "Hutang dengan kode {$hutang->kode}, dibayar {$bayar} 💸";
@@ -456,6 +490,7 @@ class DataHutangController extends Controller
             'hutang.kode', 'hutang.tanggal','hutang.supplier','hutang.jumlah as jml_hutang','hutang.bayar as byr_hutang','hutang.operator',
             'itemhutang.jumlah as hutang_jumlah',
             'itemhutang.jumlah_hutang as jumlah_hutang',
+            'pembelian.kode as kode_transaksi',
             'pembelian.tanggal as tanggal_pembelian',
             'pembelian.kode_kas',
             'pembelian.jumlah as jumlah_pembelian',
@@ -466,6 +501,7 @@ class DataHutangController extends Controller
             'pembelian.jt',
             'pembelian.lunas',
             'pembelian.hutang',
+            'pembelian.biayabongkar',
             'itempembelian.kode_barang',
             'itempembelian.nama_barang',
             'itempembelian.qty',

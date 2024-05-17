@@ -36,6 +36,8 @@ class DataKoreksiStokController extends Controller
 
 
         $query = KoreksiStok::query()
+        ->select('koreksi.*', 'itemkoreksi.kode_barang', 'itemkoreksi.nama_barang', 'itemkoreksi.satuan', 'itemkoreksi.selisih')
+        ->leftJoin('itemkoreksi', 'koreksi.kode', '=', 'itemkoreksi.kode')
         ->limit(10);
 
         if ($dateTransaction) {
@@ -56,7 +58,7 @@ class DataKoreksiStokController extends Controller
                 $query->whereRaw('LOWER(koreksi.operator) like ?', [strtolower('%' . $user->name . '%')]);
             } 
         })
-        ->orderByDesc('koreksi.tanggal')
+        ->orderByDesc('koreksi.id')
         ->paginate(10);
 
         return new ResponseDataCollect($results);
@@ -85,7 +87,7 @@ class DataKoreksiStokController extends Controller
     public function store(Request $request)
     {
         try {
-         $validator = Validator::make($request->all(), [
+           $validator = Validator::make($request->all(), [
             'alasan' => 'required',
             'stok_kini' => [
                 'required',
@@ -97,7 +99,7 @@ class DataKoreksiStokController extends Controller
             ],
         ]);
 
-         if ($validator->fails()) {
+           if ($validator->fails()) {
             return response()->json($validator->errors(), 400);
         }
 
@@ -106,10 +108,12 @@ class DataKoreksiStokController extends Controller
         $storeKoreksi->tanggal = $request->tanggal;
         $storeKoreksi->operator = $request->operator;
         $storeKoreksi->lokasistok = $request->lokasistok;
+        $storeKoreksi->jumlah = $request->stok_kini;
         $storeKoreksi->jenis = $request->jenis;
         $storeKoreksi->save();
 
         $itemKoreksi = new ItemKoreksi;
+        $itemKoreksi->kode = $storeKoreksi->kode;
         $itemKoreksi->kode_barang = $request->kode_barang;
         $itemKoreksi->nama_barang = $request->nama_barang;
         $itemKoreksi->satuan = $request->satuan;

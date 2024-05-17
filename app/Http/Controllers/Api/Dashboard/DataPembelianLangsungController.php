@@ -153,6 +153,7 @@ class DataPembelianLangsungController extends Controller
             // $updateStokBarang->save();
 
             $kas = Kas::findOrFail($data['kode_kas']);
+            $kasBiaya = $data['kas_biaya'] !== null ? Kas::findOrFail($data['kas_biaya']) : null;
 
             if($kas->saldo < $data['diterima']) {
                 return response()->json([
@@ -167,26 +168,38 @@ class DataPembelianLangsungController extends Controller
             $newPembelian->draft = 0;
             $newPembelian->supplier = $supplier->kode;
             $newPembelian->kode_kas = $kas->kode;
+            $newPembelian->kas_biaya = intval($data['biayabongkar']) > 0 ? $kasBiaya->kode : NULL;
 
-            $newPembelian->jumlah = $data['jumlah'];
+            $newPembelian->jumlah = intval($data['biayabongkar']) > 0 ? $data['jumlah'] - intval($data['biayabongkar']) : $data['jumlah'];
             $newPembelian->bayar = $data['bayar'];
             $newPembelian->diterima = intval($data['bayar']) !== 0 ? $data['diterima'] : $data['bayar'];
-            $newPembelian->kembali = intval($data['bayar']) >= intval($data['jumlah']) ? intval($data['bayar']) - intval($data['jumlah']) : intval($data['jumlah']) - intval($data['bayar']);
 
+            if($data['showDp'] === 'true') {
+                $kembali = 0;              
+            } else {
+                if(intval($data['bayar']) >= intval($data['jumlah'])) {
+                    $kembali = intval($data['bayar']) - intval($data['jumlah']);
+                } else if(intval($data['bayar']) === 0) {
+                    $kembali = 0;
+                } else {
+                    $kembali = intval($data['jumlah']) - intval($data['bayar']);
+                }  
+            }
+            $newPembelian->kembali = $kembali;
             // $updateSaldoSupplier = Supplier::findOrFail($supplier->id);
             // $updateSaldoSupplier->saldo_hutang = intval($data['bayar']) !== 0 ? $supplier->saldo_hutang + $data['hutang'] : $supplier->saldo_hutang + $data['diterima'];
-            // var_dump($updateSaldoSupplier->saldo_hutang); die;
 
             if($data['pembayaran'] !== "cash") {
-                // var_dump(intval($data['bayar']));
-                // echo "<br/>";
-                // var_dump($data['diterima']);
-
-                // die;
-
                 $newPembelian->lunas = "False";
                 $newPembelian->visa = 'HUTANG';
-                $newPembelian->hutang = intval($data['bayar']) !== 0 ? $data['hutang'] : $data['diterima'];
+
+                if($data['showDp'] === 'true') {
+                    $hutang = intval($data['hutang']) - intval($data['biayabongkar']);
+                } else {
+                    $hutang = intval($data['bayar']) !== 0 ? intval($data['hutang']) - intval($data['biayabongkar']) : intval($data['diterima']) - intval($data['biayabongkar']);
+                }
+
+                $newPembelian->hutang = $hutang;
                 $newPembelian->po = 'False';
                 $newPembelian->receive = "True";
                 $newPembelian->jt = $data['jt'];
@@ -200,7 +213,10 @@ class DataPembelianLangsungController extends Controller
                 $masuk_hutang->kd_beli = $data['ref_code'];
                 $masuk_hutang->tanggal = $currentDate;
                 $masuk_hutang->supplier = $supplier->kode;
-                $masuk_hutang->jumlah = intval($data['bayar']) !== 0 ? $data['hutang'] : $data['diterima'];
+                // if(intval($data['biayabongkar']) > 0) {
+                //     $jumlahHutang = intval($data['bayar'])
+                // }
+                $masuk_hutang->jumlah = $hutang;
                 $masuk_hutang->bayar = $data['bayar'];
                 $masuk_hutang->kode_kas = $newPembelian->kode_kas;
                 $masuk_hutang->operator = $data['operator'];
@@ -224,11 +240,13 @@ class DataPembelianLangsungController extends Controller
                 $angsuran = new PembayaranAngsuran;
                 $angsuran->kode = $masuk_hutang->kode;
                 $angsuran->tanggal = $masuk_hutang->tanggal;
+                $angsuran->operator = $data['operator'];
                 $angsuran->angsuran_ke = $angsuranKeBaru;
                 $angsuran->kode_pelanggan = NULL;
                 $angsuran->kode_faktur = $data['ref_code'];
                 $angsuran->bayar_angsuran = intval($data['bayar']) !== 0 ? $data['diterima'] : $data['bayar'];
                 $angsuran->jumlah = intval($data['bayar']) !== 0 ? $item_hutang->jumlah_hutang : $data['diterima'];
+                $angsuran->keterangan = "Pembayaran angsuran melalui kas : {$newPembelian->kode_kas}";
                 $angsuran->save();
 
                 $updateSaldoSupplier = Supplier::findOrFail($supplier->id);
@@ -244,22 +262,28 @@ class DataPembelianLangsungController extends Controller
             }
 
             $newPembelian->return = "False";
-            $newPembelian->biayabongkar =  $data['biayabongkar'] ?? NULL;
+            $newPembelian->biayabongkar =  $data['biayabongkar'];
             $newPembelian->keterangan = $data['keterangan'];
             $newPembelian->operator = $data['operator'];
 
             $newPembelian->save();
-            
+
             $updateDrafts = ItemPembelian::whereKode($newPembelian->kode)->get();
             foreach($updateDrafts as $idx => $draft) {
                 $updateDrafts[$idx]->draft = 0;
                 $updateDrafts[$idx]->save();
             }
-            
+
+            if(intval($data['biayabongkar']) > 0) {
+                $updateKasBiaya = Kas::findOrFail($data['kas_biaya']);
+                $updateKasBiaya->saldo = intval($kasBiaya->saldo) - $data['biayabongkar'];
+                $updateKasBiaya->save();
+            }
+
             if($data['pembayaran'] !== "cash") {
-                $diterima = intval($newPembelian->diterima);
+                $diterima = intval($newPembelian->diterima) !== 0 ? intval($newPembelian->diterima) : intval($data['jumlah']);
                 $updateKas = Kas::findOrFail($data['kode_kas']);
-                $updateKas->saldo = intval($updateKas->saldo) - $data['bayar'];
+                $updateKas->saldo = intval($data['bayar']) !== 0 ? intval($updateKas->saldo) - $data['bayar'] : intval($updateKas->saldo) - intval($data['jumlah']);
                 $updateKas->save();
             } else {                
                 $diterima = intval($newPembelian->diterima);
@@ -336,7 +360,7 @@ class DataPembelianLangsungController extends Controller
 
         $barangs = $query->get();
         $pembelian = $query->get()[0];
-        
+
         foreach($barangs as $barang) {            
             $orders = PurchaseOrder::where('kode_po', $kode)
             ->where('kode_barang', $barang->kode_barang)
@@ -367,7 +391,7 @@ class DataPembelianLangsungController extends Controller
         try {
             $pembelian = Pembelian::query()
             ->select(
-                'pembelian.id','pembelian.kode', 'pembelian.tanggal', 'pembelian.supplier', 'pembelian.kode_kas', 'pembelian.keterangan', 'pembelian.diskon','pembelian.tax', 'pembelian.jumlah', 'pembelian.bayar', 'pembelian.diterima','pembelian.kembali','pembelian.operator', 'pembelian.jt as tempo' ,'pembelian.lunas', 'pembelian.visa', 'pembelian.hutang', 'pembelian.po', 'pembelian.return', 'kas.id as kas_id', 'kas.kode as kas_kode', 'kas.nama as kas_nama','kas.saldo as kas_saldo','return_pembelian.kode as kode_return', 'return_pembelian.tanggal as tanggal_return','return_pembelian.qty','return_pembelian.satuan','return_pembelian.nama_barang','return_pembelian.harga','return_pembelian.jumlah as jumlah_return', 'return_pembelian.alasan'
+                'pembelian.id','pembelian.kode', 'pembelian.tanggal', 'pembelian.supplier', 'pembelian.kode_kas', 'pembelian.kas_biaya', 'pembelian.keterangan', 'pembelian.diskon','pembelian.tax', 'pembelian.jumlah', 'pembelian.bayar', 'pembelian.diterima','pembelian.kembali','pembelian.operator', 'pembelian.jt as tempo' ,'pembelian.lunas', 'pembelian.visa', 'pembelian.hutang', 'pembelian.po', 'pembelian.return', 'pembelian.biayabongkar', 'kas.id as kas_id', 'kas.kode as kas_kode', 'kas.nama as kas_nama','kas.saldo as kas_saldo','return_pembelian.kode as kode_return', 'return_pembelian.tanggal as tanggal_return','return_pembelian.qty','return_pembelian.satuan','return_pembelian.nama_barang','return_pembelian.harga','return_pembelian.jumlah as jumlah_return', 'return_pembelian.alasan'
             )
             ->leftJoin('kas', 'pembelian.kode_kas', '=', 'kas.kode')
             ->leftJoin('return_pembelian', 'pembelian.kode', '=', 'return_pembelian.no_faktur')
@@ -532,7 +556,7 @@ class DataPembelianLangsungController extends Controller
                 // ->findOrFail($id);
             $delete_pembelian = Pembelian::findOrFail($id);
 
-            $dataHutang = Hutang::where('kode', $delete_pembelian->kode)->first();
+            $dataHutang = Hutang::where('kd_beli', $delete_pembelian->kode)->first();
 
             if($dataHutang) {
                 $delete_hutang = Hutang::findOrFail($dataHutang->id);
@@ -571,6 +595,11 @@ class DataPembelianLangsungController extends Controller
             $updateKas = Kas::findOrFail($dataKas->id);
             $updateKas->saldo = $dataKas->saldo + $delete_pembelian->jumlah;
             $updateKas->save();
+
+            $dataKasBiaya = Kas::where('kode', $delete_pembelian->kas_biaya)->first();
+            $updateKasBiaya = Kas::findOrFail($dataKasBiaya->id);
+            $updateKasBiaya->saldo = $dataKasBiaya->saldo + $delete_pembelian->biayabongkar;
+            $updateKasBiaya->save();
 
             $data_event = [
                 'alert' => 'error',

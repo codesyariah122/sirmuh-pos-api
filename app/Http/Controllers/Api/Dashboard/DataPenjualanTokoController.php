@@ -214,6 +214,7 @@ class DataPenjualanTokoController extends Controller
                 $angsuran = new PembayaranAngsuran;
                 $angsuran->kode = $masuk_hutang->kode;
                 $angsuran->tanggal = $masuk_hutang->tanggal;
+                $angsuran->operator = $data['operator'];
                 $angsuran->angsuran_ke = $angsuranKeBaru;
                 $angsuran->kode_pelanggan = NULL;
                 $angsuran->kode_faktur = $data['ref_code'];
@@ -225,6 +226,7 @@ class DataPenjualanTokoController extends Controller
                     $angsuran->bayar_angsuran = 0;
                 }
                 $angsuran->jumlah = $item_piutang->jumlah;
+                $angsuran->keterangan = "Pembayaran angsuran melalui kas : {$newPenjualanToko->kode_kas}";
                 $angsuran->save();
 
                 $dataPelanggan = Pelanggan::where('kode', $newPenjualanToko->pelanggan)->first();
@@ -435,7 +437,7 @@ class DataPenjualanTokoController extends Controller
 
 
             $items = ItemPenjualan::query()
-            ->select('itempenjualan.*','barang.id as id_barang','barang.kode as kode_barang', 'barang.nama as nama_barang', 'barang.photo', 'barang.hpp as harga_beli_barang', 'barang.expired as expired_barang', 'barang.ada_expired_date','pelanggan.id as id_pelanggan','pelanggan.nama as nama_pelanggan','pelanggan.alamat as alamat_pelanggan', 'supplier.kode as kode_supplier', 'supplier.nama as nama_supplier')
+            ->select('itempenjualan.*','barang.id as id_barang','barang.kode as kode_barang', 'barang.nama as nama_barang', 'barang.photo', 'barang.hpp as harga_beli_barang', 'barang.harga_toko', 'barang.expired as expired_barang', 'barang.ada_expired_date','pelanggan.id as id_pelanggan','pelanggan.nama as nama_pelanggan','pelanggan.alamat as alamat_pelanggan', 'supplier.kode as kode_supplier', 'supplier.nama as nama_supplier')
             ->leftJoin('pelanggan', 'itempenjualan.pelanggan', '=', 'pelanggan.kode')
             ->leftJoin('barang', 'itempenjualan.kode_barang', '=', 'barang.kode')
             ->leftJoin('supplier', 'itempenjualan.supplier', '=', 'supplier.kode')

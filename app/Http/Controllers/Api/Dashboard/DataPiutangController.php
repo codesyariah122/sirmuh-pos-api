@@ -44,6 +44,7 @@ class DataPiutangController extends Controller
             $startOfMonth = $now->startOfMonth()->toDateString();
             $endOfMonth = $now->endOfMonth()->toDateString();
             $dateTransaction = $request->query('date_transaction');
+            $user = Auth::user();
 
             $query = Piutang::select('piutang.id','piutang.kode', 'piutang.tanggal', 'piutang.jumlah', 'piutang.operator', 'itempiutang.jumlah_piutang', 'itempiutang.return','itempiutang.jumlah as piutang_jumlah', 'penjualan.id as id_penjualan', 'penjualan.kode as kode_penjualan','penjualan.tanggal as tanggal_penjualan', 'penjualan.jt as jatuh_tempo', 'penjualan.lunas', 'penjualan.visa', 'pelanggan.kode as kode_pelanggan', 'pelanggan.nama as nama_pelanggan')
             ->leftJoin('itempiutang', 'piutang.kode', '=', 'itempiutang.kode_piutang')
@@ -69,7 +70,12 @@ class DataPiutangController extends Controller
                 $query->whereDate('hutang.tanggal', '=', $dateTransaction);
             }
 
-            $query->orderByDesc('piutang.id');
+            $query->orderByDesc('piutang.id')
+            ->where(function ($query) use ($user) {
+                if ($user->role !== 1) {
+                    $query->whereRaw('LOWER(piutang.operator) like ?', [strtolower('%' . $user->name . '%')]);
+                } 
+            });
 
             $piutangs = $query->paginate(10);
             return new ResponseDataCollect($piutangs);
@@ -167,6 +173,8 @@ class DataPiutangController extends Controller
                 return response()->json($validator->errors(), 400);
             }
 
+            $user = Auth::user();
+
             $query =  Piutang::query()
             ->select('piutang.*', 'penjualan.jt as jatuh_tempo','penjualan.kode_kas','penjualan.jumlah as jumlah_penjualan','penjualan.bayar as bayar_penjualan', 'penjualan.visa','penjualan.lunas', 'pelanggan.id as id_pelanggan', 'pelanggan.kode as kode_pelanggan', 'pelanggan.nama as nama_pelanggan', 'itempenjualan.nama_barang', 'itempenjualan.kode_barang', 'itempenjualan.qty as qty_penjualan', 'itempenjualan.satuan as satuan_penjualan_barang', 'itempenjualan.harga as harga_beli', 'barang.kategori', 'barang.kode as kode_barang', 'barang.kode_barcode as kode_barcode',  'kas.id as kas_id', 'kas.kode as kas_kode', 'kas.nama as kas_nama', 'pembayaran_angsuran.tanggal as tanggal_angsuran', 'pembayaran_angsuran.angsuran_ke', 'pembayaran_angsuran.bayar_angsuran', 'pembayaran_angsuran.jumlah as jumlah_angsuran')
             ->leftJoin('penjualan', 'piutang.kd_jual', '=', 'penjualan.kode')
@@ -180,9 +188,14 @@ class DataPiutangController extends Controller
 
             $bayar = intval($request->bayar);
             $jmlHutang = intval($piutang->jumlah);
-            $kasId = $request->kas_id;
+            $kasId = $request->kode_kas;
 
-            $dataKas = Kas::findOrFail($piutang->kas_id);
+            if(gettype($kasId) === "string") {
+                $kodeKas = Kas::whereKode($kasId)->first();
+                $dataKas = Kas::findOrFail($kodeKas->id);
+            } else {
+                $dataKas = Kas::findOrFail($kasId);
+            }
 
             $checkAngsuran = PembayaranAngsuran::where('kode', $piutang->kode)
             ->get();
@@ -192,7 +205,7 @@ class DataPiutangController extends Controller
                 $updatePenjualan = Penjualan::findOrFail($dataPenjualan->id);
                 $updatePenjualan->bayar = intval($dataPenjualan->bayar) + $bayar;
 
-                if($bayar >= $dataPenjualan->piutang) {
+                if($bayar >= intval($dataPenjualan->piutang)) {
                     $updatePenjualan->lunas = "True";
                     $updatePenjualan->visa = "LUNAS";
                     $updatePenjualan->piutang = 0;
@@ -241,11 +254,15 @@ class DataPiutangController extends Controller
                 $angsuran = new PembayaranAngsuran;
                 $angsuran->kode = $piutang->kode;
                 $angsuran->tanggal = $piutang->tanggal;
+                $angsuran->operator = $user->name;
                 $angsuran->angsuran_ke = $angsuranKeBaru;
+                $angsuran->kas = "{$dataKas->nama} ($dataKas->kode)";
+                $angsuran->kode_faktur = $updatePenjualan->kode;
                 $angsuran->kode_pelanggan = NULL;
                 $angsuran->kode_faktur = NULL;
                 $angsuran->bayar_angsuran = $bayar;
                 $angsuran->jumlah = intval($angsuranTerakhir->jumlah) - $bayar;
+                $angsuran->keterangan = strip_tags($request->keterangan);
                 $angsuran->save();
 
                 $notifEvent =  "Piutang dengan kode {$piutang->kode}, dibayarkan {$bayar} 💸";
@@ -362,6 +379,7 @@ class DataPiutangController extends Controller
             'piutang.kode', 'piutang.tanggal','piutang.pelanggan','piutang.jumlah as jml_piutang','piutang.bayar as byr_piutang','piutang.operator',
             'itempiutang.jumlah as piutang_jumlah',
             'itempiutang.jumlah_piutang as jumlah_piutang',
+            'penjualan.kode as kode_transaksi',
             'penjualan.tanggal as tanggal_penjualan',
             'penjualan.kode_kas',
             'penjualan.jumlah as jumlah_penjualan',
