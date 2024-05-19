@@ -45,11 +45,10 @@ class DataPenjualanTokoController extends Controller
 
            $query = Penjualan::query()
            ->select(
-            'penjualan.id','penjualan.tanggal', 'penjualan.kode', 'penjualan.pelanggan','penjualan.keterangan', 'penjualan.kode_kas', 'penjualan.jumlah','penjualan.bayar', 'penjualan.dikirim','penjualan.lunas','penjualan.operator', 'penjualan.receive', 'penjualan.biayakirim','penjualan.status', 'kas.nama as nama_kas', 'pelanggan.nama as nama_pelanggan'
+            'penjualan.id','penjualan.tanggal', 'penjualan.kode', 'penjualan.pelanggan','penjualan.keterangan', 'penjualan.kode_kas', 'penjualan.jumlah','penjualan.bayar', 'penjualan.dikirim', 'penjualan.diskon', 'penjualan.lunas','penjualan.operator', 'penjualan.receive', 'penjualan.biayakirim','penjualan.status', 'penjualan.return', 'kas.nama as nama_kas', 'pelanggan.nama as nama_pelanggan'
         )
            ->leftJoin('kas', 'penjualan.kode_kas', '=', 'kas.kode')
            ->leftJoin('pelanggan', 'penjualan.pelanggan', '=', 'pelanggan.kode')
-           ->orderByDesc('penjualan.id')
            ->where('jenis', 'PENJUALAN TOKO')
            ->limit(10);
 
@@ -118,6 +117,7 @@ class DataPenjualanTokoController extends Controller
 
             $data = $request->all();
             $barangs = $data['barangs'];
+            $bayar = $this->helpers->convertCurrencyToInteger($data['bayar']);
             
             $dataBarangs = json_decode($barangs, true);
 
@@ -160,6 +160,7 @@ class DataPenjualanTokoController extends Controller
             $newPenjualanToko->kode = $data['ref_code'] ? $data['ref_code'] : $generatedCode;
             $newPenjualanToko->draft = $data['draft'] ? 1 : 0;
             $newPenjualanToko->kode_kas = $kas->kode;
+            $newPenjualanToko->diskon = $request->diskon;
             
             if(isset($data['jumlah']) && is_numeric($data['jumlah'])) {
                 $newPenjualanToko->jumlah = $data['jumlah'];
@@ -167,14 +168,14 @@ class DataPenjualanTokoController extends Controller
                 $newPenjualanToko->jumlah = 0;
             }
             
-            $newPenjualanToko->bayar = $data['bayar'];
+            $newPenjualanToko->bayar = $bayar;
 
 
             // var_dump($bayar); die;
 
             // Masuk ke hutang
             if($data['pembayaran'] !== "cash") {
-                $newPenjualanToko->angsuran = $data['bayar'];
+                $newPenjualanToko->angsuran = $bayar;
                 $newPenjualanToko->lunas = "False";
                 $newPenjualanToko->visa = 'PIUTANG';
                 $newPenjualanToko->piutang = $data['piutang'] !== "undefined" ? $data['piutang'] : $data['jumlah'];
@@ -220,8 +221,8 @@ class DataPenjualanTokoController extends Controller
                 $angsuran->kode_faktur = $data['ref_code'];
                 if ($data['piutang'] !== "undefined") {
                     $angsuran->bayar_angsuran = $data['diterima'];
-                } elseif ($data['bayar'] !== null) {
-                    $angsuran->bayar_angsuran = $data['bayar'];
+                } elseif ($bayar !== null) {
+                    $angsuran->bayar_angsuran = $bayar;
                 } else {
                     $angsuran->bayar_angsuran = 0;
                 }
@@ -234,16 +235,16 @@ class DataPenjualanTokoController extends Controller
                 $updateSaldoPelanggan->saldo_piutang = $data['piutang'] !== "undefined" ? $dataPelanggan->saldo_piutang + $data['piutang'] : $pelanggan->saldo_piutang + intval($data['jumlah']);
                 $updateSaldoPelanggan->save();
             } else {
-                if(intval($data['bayar']) >= intval($data['jumlah'])) {
-                    $newPenjualanToko->kembali = intval($data['bayar']) - intval($data['jumlah']);
+                if($bayar >= intval($data['jumlah'])) {
+                    $newPenjualanToko->kembali = $bayar - intval($data['jumlah']);
                 } else {
-                    $newPenjualanToko->kembali = intval($data['jumlah']) - intval($data['bayar']);
+                    $newPenjualanToko->kembali = intval($data['jumlah']) - $bayar;
                 }
 
-                if(intval($data['bayar']) > intval($data['jumlah'])) {
+                if($bayar > intval($data['jumlah'])) {
                     $newPenjualanToko->lunas = "True";
                     $newPenjualanToko->visa = "LUNAS";
-                } else if(intval($data['bayar']) == intval($data['jumlah'])) {
+                } else if($bayar == intval($data['jumlah'])) {
                     $newPenjualanToko->lunas = "True";
                     $newPenjualanToko->visa = "UANG PAS";
                 } else {
@@ -257,7 +258,7 @@ class DataPenjualanTokoController extends Controller
                 $newPenjualanToko->po = 'False';
                 $newPenjualanToko->receive = $data['status_kirim'] !== "PROSES" ? "True" : "False";
                 $newPenjualanToko->jt = $data['jt'] ?? 0;
-                $newPenjualanToko->status = $data['status_kirim'] ? $data['status_kirim'] : 'DIKIRIM';
+                $newPenjualanToko->status = $data['status_kirim'] ? $data['status_kirim'] : 'PROSES';
             }
             $newPenjualanToko->return = "False";
             $newPenjualanToko->jenis = "PENJUALAN TOKO";

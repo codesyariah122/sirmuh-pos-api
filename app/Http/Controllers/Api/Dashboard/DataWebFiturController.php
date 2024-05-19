@@ -971,7 +971,7 @@ class DataWebFiturController extends Controller
                 $title = "pelanggan terbaik";
                 $icon = "🎖️";
                 $label = "Total Pembelian";
-                $result = Pelanggan::select('pelanggan.kode', 'pelanggan.nama', DB::raw('COALESCE(SUM(penjualan.subtotal), 0) as total_penjualan'))
+                $result = Pelanggan::select('pelanggan.kode', 'pelanggan.nama', DB::raw('COALESCE(SUM(penjualan.jumlah), 0) as total_penjualan'))
                 ->leftJoin('penjualan', 'pelanggan.kode', '=', 'penjualan.pelanggan')
                 ->whereNull('pelanggan.deleted_at')
                 ->groupBy('pelanggan.kode', 'pelanggan.nama')
@@ -1079,7 +1079,7 @@ class DataWebFiturController extends Controller
                 $update_user_karyawan = Karyawan::whereKode($prepare_user->name)->first();
                 $user_karyawan_update = Karyawan::findOrFail($update_user_karyawan->id);
                 $user_karyawan_update->nama = $request->name ? $request->name : $update_user->name;
-                $user_karyawan_update->alamat = $request->alamat ? $request->alamat : null;
+                $user_karyawan_update->alamat = $request->alamat ? $request->alamat :$update_user_karyawan->alamat;
                 $user_karyawan_update->save();
 
                 $user_id = $prepare_user->id;
@@ -1421,6 +1421,7 @@ class DataWebFiturController extends Controller
         $diterima   = $total - ($diskon / 100 * $total);
         $kembali = ($bayar != 0) ? $bayar - $diterima : 0;
         $data    = [
+            'total' => $total,
             'totalrp' => $this->helpers->format_uang($total),
             'bayar' => $bayar,
             'bayarrp' => $this->helpers->format_uang($bayar),
@@ -1571,6 +1572,71 @@ public function update_stok_barang_po(Request $request)
     } catch (\Throwable $th) {
         throw $th;
     }
+}
+
+public function edit_stok_data_barang(Request $request)
+{
+    try {
+        $barangs = $request->barangs;
+        $type = $request->type;
+
+        switch($type) {
+         case "pembelian":
+         foreach ($barangs as $barang) {
+            $updateBarang = Barang::findOrFail($barang['id']);
+                // if($barang['qty'] > $updateBarang->last_qty){
+                //     $newStok = $updateBarang->toko + $barang['qty'];
+                // } else {
+                //     $newStok = $updateBarang->toko;
+                // }
+            if($barang['last_qty'] !== NULL && $barang['last_qty'] >= 0) {
+                $lastQty = $barang['last_qty'];
+            } else {
+                $lastQty = $updateBarang->toko;
+            }
+
+                // $newStok = $updateBarang->toko + $barang['qty'];
+            $newStok = max(0, $updateBarang->toko) - $barang['qty'];
+            $updateBarang->toko = $newStok;
+            $updateBarang->last_qty = $lastQty;
+            $updateBarang->save();
+        }
+        break;
+        case "penjualan":
+        foreach($barangs as $barang) {
+            $stok = Barang::findOrFail($barang['id']);
+            $updateBarang = Barang::findOrFail($barang['id']);
+            $qtyBarang = $barang['qty'];
+            if($barang['last_qty'] !== NULL && $barang['last_qty'] >= 0) {
+                $lastQty = $barang['last_qty'];
+            } else {
+                $lastQty = $updateBarang->toko;
+            }
+            $stokBarang = max(0, $stok->toko);
+            $updateBarang->toko = $stokBarang + $qtyBarang;
+            $updateBarang->last_qty = $lastQty;
+            $updateBarang->save();
+        }
+        break;
+    }
+
+    $data_event = [
+        'type' => 'updated',
+        'routes' => 'data-barang',
+        'notif' => "Stok barang, successfully update!"
+    ];
+
+    event(new EventNotification($data_event));
+
+    return response()->json([
+        'success' => true,
+        'message' => 'Stok barang update!',
+        'data' => $barangs
+    ]);
+
+} catch (\Throwable $th) {
+    throw $th;
+}
 }
 
 public function update_stok_barang_all(Request $request)
@@ -2134,12 +2200,13 @@ public function list_draft_itempenjualan($kode)
 public function delete_item_penjualan($id)
 {
     try {
-        $itemPembelian = ItemPenjualan::findOrFail($id);
-        $itemPembelian->forceDelete();
+        $itemPenjualan = ItemPenjualan::findOrFail($id);
+        $itemPenjualan->forceDelete();
 
         return response()->json([
             'success' => true,
-            'message' => 'Item penjualan successfully deleted!'
+            'message' => 'Item penjualan successfully deleted!',
+            'data' => $itemPenjualan
         ], 200);
     } catch (\Throwable $th) {
         throw $th;

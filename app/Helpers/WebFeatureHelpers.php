@@ -27,6 +27,11 @@ class WebFeatureHelpers
         $this->data = $data;
     }
 
+    function convertCurrencyToInteger($currencyString) {
+        $cleanedString = preg_replace('/[^0-9]/', '', $currencyString);
+        return (int) $cleanedString;
+    }
+
     public function format_tanggal($tanggal)
     {
         $carbonDate = Carbon::parse($tanggal);
@@ -218,7 +223,7 @@ class WebFeatureHelpers
     public function terbilang($angka)
     {
         $angka = abs(floatval($angka));
-        $baca  = array('', 'satu', 'dua ', 'tiga', 'empat', 'lima', 'enam', 'tujuh', 'delapan', 'sembilan', 'sepuluh', 'sebelas');
+        $baca  = array('nol', 'satu', 'dua ', 'tiga', 'empat', 'lima', 'enam', 'tujuh', 'delapan', 'sembilan', 'sepuluh', 'sebelas');
         $terbilang = '';
 
         if ($angka < 12) {
