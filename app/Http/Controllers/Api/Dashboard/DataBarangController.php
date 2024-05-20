@@ -203,7 +203,7 @@ class DataBarangController extends Controller
 
             foreach ($barangs as $item) {
                 $kodeBarcode = $item->kode_barcode;
-                $this->feature_helpers->generateQrCode($kodeBarcode);
+                $this->feature_helpers->generateBarcode($kodeBarcode);
             }
 
             // var_dump($barangs); die;
@@ -368,10 +368,6 @@ public function detail_by_barcode($barcode)
             $newBarang->kode = $request->kode;
             $newBarang->kategori_barang = $request->kategori_barang;
             $newBarang->kategori = $request->supplier;
-                // if ($request->hasFile('photo')) {
-                //     $photoPath = $request->file('photo')->store('barang');
-                //     $data['photo'] = $photoPath;
-                // }
 
             if ($request->file('photo')) {
                 $photo = $request->file('photo');
@@ -407,7 +403,6 @@ public function detail_by_barcode($barcode)
                 $newBarang->kategori_barang = $kategoriBarang->nama;
             }
 
-
             $checkSatuanBeli = SatuanBeli::where('nama', $request->satuanbeli)->count();
             if($checkSatuanBeli === 0) {
                 $newSatuanBeli = new SatuanBeli;
@@ -431,7 +426,6 @@ public function detail_by_barcode($barcode)
                 $satuanJualBarang = SatuanJual::where('nama', $request->satuanjual)->first();
                 $newBarang->satuan = $satuanJualBarang->nama;
             }
-
 
             if($request->ada_expired_date === "True") {
                 $newBarang->ada_expired_date = "True";
