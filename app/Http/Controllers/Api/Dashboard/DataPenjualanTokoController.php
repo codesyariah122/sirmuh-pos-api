@@ -209,7 +209,6 @@ class DataPenjualanTokoController extends Controller
                 $angsuranTerakhir = PembayaranAngsuran::where('kode', $masuk_hutang->kode)
                 ->orderBy('angsuran_ke', 'desc')
                 ->first();
-
                 $angsuranKeBaru = ($angsuranTerakhir) ? $angsuranTerakhir->angsuran_ke + 1 : 1;
 
                 $angsuran = new PembayaranAngsuran;
@@ -251,9 +250,6 @@ class DataPenjualanTokoController extends Controller
                     $newPenjualanToko->lunas = "True";
                 }
 
-                // $newPenjualanToko->lunas = $data['pembayaran'] === 'cash' ? "True" : "False";
-                // $newPenjualanToko->visa = $data['pembayaran'] === 'cash' ? 'UANG PAS' : 'HUTANG';
-                // $newPenjualanToko->piutang = $data['piutang'];
                 $newPenjualanToko->dikirim = $data['status_kirim'] !== 'PROSES' ? $data['jumlah'] : 0;
                 $newPenjualanToko->po = 'False';
                 $newPenjualanToko->receive = $data['status_kirim'] !== "PROSES" ? "True" : "False";
@@ -286,10 +282,12 @@ class DataPenjualanTokoController extends Controller
 
             $userOnNotif = Auth::user();
             $itemPenjualanBarang = ItemPenjualan::whereKode($newPenjualanToko->kode)->first();
+            $dataBarang = Barang::whereKode($itemPenjualanBarang->kode_barang)->first();
+            $barangById = Barang::findOrFail($dataBarang->id);
             $newPenjualanData = Penjualan::findOrFail($newPenjualanToko->id);
-            $hpp = $itemPenjualanBarang->harga * $data['qty'];
-            $diskon = $newPenjualanToko->diskon;
-            $labarugi = ($newPenjualanToko->bayar - $hpp) - $diskon;
+            $diskon = $newPenjualanToko->diskon ?? 0;
+            // $labarugi = ($newPenjualanToko->bayar - $barangById->hpp) - $diskon;
+            $labarugi = $newPenjualanToko->bayar - $barangById->hpp;
 
             $newLabaRugi = new LabaRugi;
             $newLabaRugi->tanggal = now()->toDateString();
@@ -427,7 +425,7 @@ class DataPenjualanTokoController extends Controller
         try {
             $penjualan = Penjualan::query()
             ->select(
-                'penjualan.id','penjualan.kode', 'penjualan.tanggal', 'penjualan.pelanggan', 'penjualan.kode_kas', 'penjualan.keterangan', 'penjualan.diskon','penjualan.tax', 'penjualan.jumlah', 'penjualan.bayar','penjualan.dikirim', 'penjualan.kembali','penjualan.operator', 'penjualan.jt as tempo' ,'penjualan.lunas', 'penjualan.visa', 'penjualan.piutang', 'penjualan.receive',  'penjualan.status','penjualan.biayakirim', 'penjualan.po', 'kas.id as kas_id', 'kas.kode as kas_kode', 'kas.nama as kas_nama','kas.saldo as kas_saldo','pelanggan.id as id_pelanggan','pelanggan.kode as kode_pelanggan','pelanggan.nama as nama_pelanggan', 'pelanggan.alamat', 'return_penjualan.tanggal as tanggal_return','return_penjualan.qty','return_penjualan.satuan','return_penjualan.nama_barang','return_penjualan.harga','return_penjualan.jumlah as jumlah_return', 'return_penjualan.alasan'
+                'penjualan.id','penjualan.kode', 'penjualan.tanggal', 'penjualan.pelanggan', 'penjualan.kode_kas', 'penjualan.keterangan', 'penjualan.diskon','penjualan.tax', 'penjualan.jumlah', 'penjualan.bayar','penjualan.dikirim', 'penjualan.kembali','penjualan.operator', 'penjualan.jt as tempo' ,'penjualan.lunas', 'penjualan.visa', 'penjualan.piutang', 'penjualan.receive',  'penjualan.status','penjualan.biayakirim', 'penjualan.po', 'penjualan.created_at', 'kas.id as kas_id', 'kas.kode as kas_kode', 'kas.nama as kas_nama','kas.saldo as kas_saldo','pelanggan.id as id_pelanggan','pelanggan.kode as kode_pelanggan','pelanggan.nama as nama_pelanggan', 'pelanggan.alamat', 'return_penjualan.tanggal as tanggal_return','return_penjualan.qty','return_penjualan.satuan','return_penjualan.nama_barang','return_penjualan.harga','return_penjualan.jumlah as jumlah_return', 'return_penjualan.alasan'
             )
             ->leftJoin('pelanggan', 'penjualan.pelanggan', '=',  'pelanggan.kode')
             ->leftJoin('return_penjualan', 'penjualan.kode', '=', 'return_penjualan.no_faktur')

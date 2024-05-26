@@ -223,7 +223,7 @@ class DataSupplierController extends Controller
                 ]);
             }
             $new_supplier = new Supplier;
-            $new_supplier->kode = $initials;
+            $new_supplier->kode = $request->kode ? $request->kode : $initials;
             $new_supplier->nama = strtoupper($request->nama);
             $new_supplier->email = $request->email;
             $new_supplier->telp = $this->user_helpers->formatPhoneNumber($request->telp);
@@ -271,7 +271,7 @@ class DataSupplierController extends Controller
     {
         try {
             $supplier = Supplier::whereNull('deleted_at')
-            ->select("id", "nama", "saldo_hutang", "telp", "email", "alamat", "no_npwp")
+            ->select("id", "nama", "kode", "saldo_hutang", "telp", "email", "alamat", "no_npwp")
             ->findOrFail($id);
             return response()->json([
                 'success' => true,
@@ -314,13 +314,25 @@ class DataSupplierController extends Controller
 
             $update_supplier = Supplier::whereNull('deleted_at')
             ->findOrFail($id);
-            $update_supplier->kode = $request->kode ? strtoupper(implode('', $substringArray)) : $update_supplier->kode;
+            $update_supplier->kode = $request->kode ? $request->kode : $update_supplier->kode;
             $update_supplier->nama = $request->nama ? $request->nama : $update_supplier->nama;
             $update_supplier->email = $request->email ? $request->email : $update_supplier->email;
             $update_supplier->telp = $request->telp ? $this->user_helpers->formatPhoneNumber($request->telp) : $update_supplier->telp;
             $update_supplier->alamat = $request->alamat ? htmlspecialchars(nl2br($request->alamat)) : $update_supplier->alamat;
             $update_supplier->no_npwp = $request->no_npwp ? $request->no_npwp : $update_supplier->no_npwp;
             $update_supplier->save();
+
+            $checkKategori = Kategori::where('kode', $update_supplier->nama)->first();
+
+            if($checkKategori !== NULL) {
+                $updateKategori = Kategori::findOrFail($checkKategori->id);
+                $updateKategori->kode = $request->nama ? $request->nama : $update_supplier->nama;
+                $updateKategori->save();
+            } else {
+                $new_kategori_supplier = new Kategori;
+                $new_kategori_supplier->kode = $new_supplier->nama;
+                $new_kategori_supplier->save();
+            }
 
             if($update_supplier) {
                 $userOnNotif = Auth::user();
