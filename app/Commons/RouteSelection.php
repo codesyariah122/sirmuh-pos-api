@@ -44,7 +44,8 @@ use App\Http\Controllers\Api\Dashboard\{
     DataItemPembelianController,
     DataKoreksiStokController,
     DataPemakaianBarangController,
-    DataItemPemakaianBarangController,
+    DataItemPemakaianOriginBarangController,
+    DataItemPemakaianDestBarangController,
     DataPurchaseOrderController,
     DataLaporanPembelianController,
     DataLaporanPenjualanController,
@@ -381,7 +382,25 @@ class RouteSelection {
         [
             'endPoint' => '/item-pemakaian',
             'method' => 'resource',
-            'controllers' => DataItemPemakaianBarangController::class
+            'controllers' => DataItemPemakaianOriginBarangController::class
+        ],
+
+        [
+            'endPoint' => '/item-pemakaian-dest',
+            'method' => 'resource',
+            'controllers' => DataItemPemakaianDestBarangController::class
+        ],
+
+        [
+            'endPoint' => '/item-pemakaian-dest-result/{id}',
+            'method' => 'get',
+            'controllers' => [DataItemPemakaianDestBarangController::class, 'item_pemakaian_result']
+        ],
+
+        [
+            'endPoint' => '/item-pemakaian-result/{id}',
+            'method' => 'get',
+            'controllers' => [DataItemPemakaianOriginBarangController::class, 'item_pemakaian_result']
         ],
 
         [
