@@ -30,13 +30,14 @@ class DataLaporanUtangPiutangPelangganController extends Controller
 
     public function laporanHutangPiutang()
     {
-        $tenggatWaktu = 30;
+        $tenggatWaktu = 7;
         $supplierList = [];
         $owner = User::where('role', 1)->first();
         $currentYear = date('Y');
-        $hutangs = Hutang::where('operator', strtoupper($owner->name))
+        $hutangs = Hutang::
+        // where('operator', strtoupper($owner->name))
         // ->whereIn('supplier', $supplierList)
-        ->whereMonth('tanggal', '>=', 1)
+        whereMonth('tanggal', '>=', 1)
         ->whereMonth('tanggal', '<=', 12)
         ->whereYear('tanggal', '>=', $currentYear)
         ->orderBy('tanggal', 'DESC')
@@ -45,8 +46,9 @@ class DataLaporanUtangPiutangPelangganController extends Controller
         ->limit(10)
         ->paginate(10);
 
-        $piutangs = Piutang::where('operator', strtoupper($owner->name))
-        ->whereMonth('tanggal', '>=', 1)
+        $piutangs = Piutang::
+        // where('operator', strtoupper($owner->name))
+        whereMonth('tanggal', '>=', 1)
         ->whereMonth('tanggal', '<=', 12)
         ->whereYear('tanggal', '>=', $currentYear)
         ->orderBy('tanggal', 'DESC')
