@@ -38,7 +38,8 @@ use App\Models\{
     PurchaseOrder,
     JenisPemasukan,
     Pemasukan,
-    Pengeluaran
+    Pengeluaran,
+    PemasukanPenjualan
 };
 use App\Events\{EventNotification};
 use App\Helpers\{UserHelpers, WebFeatureHelpers};
@@ -66,6 +67,48 @@ class DataWebFiturController extends Controller
             return response()->json([
                 'message' => 'Owner data info',
                 'data' => $ownerInfo
+            ]);
+        } catch (\Throwable $th) {
+            throw $th;
+        }
+    }
+
+    public function pemasukanWeekly()
+    {
+        try {
+            $startOfMonth = now()->startOfMonth();
+            $endOfMonth = now()->endOfMonth();
+
+            $query = PemasukanPenjualan::query()
+            ->select(
+                DB::raw('YEARWEEK(tanggal) as minggu'),
+                DB::raw('SUM(jumlah) as total_pemasukan')
+            );
+
+            $pemasukanPerMinggu = $query->whereBetween('tanggal', [$startOfMonth, $endOfMonth])
+            ->groupBy('minggu')
+            ->orderBy('minggu', 'asc')
+            ->get();
+
+            $chartData = $pemasukanPerMinggu->map(function ($pemasukan) {
+                $year = substr($pemasukan->minggu, 0, 4);
+                $week = substr($pemasukan->minggu, 4, 2);
+
+                $startOfWeek = date('Y-m-d', strtotime($year . 'W' . $week));
+                $endOfWeek = date('Y-m-d', strtotime($year . 'W' . $week . '7'));
+
+                return [
+                    'week_start' => $startOfWeek,
+                    'week_end' => $endOfWeek,
+                    'total_pemasukan' => $pemasukan->total_pemasukan,
+                ];
+            });
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Total Pemasukan Mingguan',
+                'label' => 'Total Pemasukan',
+                'data' => $chartData
             ]);
         } catch (\Throwable $th) {
             throw $th;
@@ -1002,9 +1045,9 @@ class DataWebFiturController extends Controller
                 $barangLimits = Barang::whereNull('barang.deleted_at')
                 ->select('barang.kode', 'barang.nama', 'barang.toko', 'supplier.kode as kode_supplier', 'supplier.nama as nama_supplier')
                 ->leftJoin('supplier', 'barang.supplier', '=', 'supplier.kode')
-                ->where('toko', 'LIKE', '-%')
+                ->where('toko', '<=', '0')
                 ->orderBy('toko')
-                ->limit(10)
+                ->limit(5)
                 ->get();
                 
                 $sendResponse = [
@@ -1599,8 +1642,8 @@ class DataWebFiturController extends Controller
             $type = $request->type;
 
             switch($type) {
-             case "pembelian":
-             foreach ($barangs as $barang) {
+               case "pembelian":
+               foreach ($barangs as $barang) {
                 $updateBarang = Barang::findOrFail($barang['id']);
                 if($barang['qty'] > $updateBarang->last_qty){
                     $bindStok = $barang['qty'] + $updateBarang->last_qty;
@@ -1699,8 +1742,8 @@ public function edit_stok_data_barang(Request $request)
         $type = $request->type;
 
         switch($type) {
-         case "pembelian":
-         foreach ($barangs as $barang) {
+           case "pembelian":
+           foreach ($barangs as $barang) {
             $updateBarang = Barang::findOrFail($barang['id']);
                 // if($barang['qty'] > $updateBarang->last_qty){
                 //     $newStok = $updateBarang->toko + $barang['qty'];
@@ -1764,8 +1807,8 @@ public function update_stok_barang_all(Request $request)
         $type = $request->type;
 
         switch($type) {
-         case "pembelian":
-         foreach ($barangs as $barang) {
+           case "pembelian":
+           foreach ($barangs as $barang) {
             $updateBarang = Barang::findOrFail($barang['id']);
                 // if($barang['qty'] > $updateBarang->last_qty){
                 //     $newStok = $updateBarang->toko + $barang['qty'];
@@ -2435,18 +2478,18 @@ public function update_faktur_terakhir(Request $request)
             $updateFakturTerakhir->save();
 
         } else {
-         $updateFakturTerakhir = FakturTerakhir::whereFaktur($request->faktur)
-         ->first();
-         $updateFakturTerakhir->faktur = $request->faktur;
-         $updateFakturTerakhir->tanggal = $today;
-         $updateFakturTerakhir->save();
+           $updateFakturTerakhir = FakturTerakhir::whereFaktur($request->faktur)
+           ->first();
+           $updateFakturTerakhir->faktur = $request->faktur;
+           $updateFakturTerakhir->tanggal = $today;
+           $updateFakturTerakhir->save();
 
-     }
-     return response()->json([
+       }
+       return response()->json([
         'success' => true,
         'message' => 'Faktur terakhir terupdate!'
     ], 200);
- } catch (\Throwable $th) {
+   } catch (\Throwable $th) {
     throw $th;
 }
 }
