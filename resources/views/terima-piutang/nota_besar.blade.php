@@ -106,10 +106,10 @@
         <td class="text-right">{{  $helpers->format_uang($piutang->diskon) }}</td>
     </tr>
     @if($piutang->status_lunas === 'False' || $piutang->status_lunas === '0')
-    <tr>
-        <td colspan="5" class="text-right">Hutang</td>
-        <td class="text-right">{{ $helpers->format_uang($piutang->jumlah_piutang) }}</td>
-    </tr>
+   {{--  <tr>
+        <td colspan="5" class="text-right">Piutang</td>
+        <td class="text-right">{{ $helpers->format_uang($piutang->jml_piutang) }}</td>
+    </tr> --}}
         {{-- @else 
         <tr>
             <td colspan="5" class="text-right">Diterima</td>
