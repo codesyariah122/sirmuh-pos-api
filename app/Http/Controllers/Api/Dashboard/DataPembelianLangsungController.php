@@ -47,7 +47,8 @@ class DataPembelianLangsungController extends Controller
         try {
             $keywords = $request->query('keywords');
             $supplier = $request->query('supplier');
-            $viewAll = $request->query('view_all');
+            // Mengatur nilai default viewAll menjadi true jika tidak ada dalam request
+            $viewAll = $request->query('view_all', 'true');
             $today = now()->toDateString();
             $now = now();
             $startOfMonth = $now->startOfMonth()->toDateString();
@@ -57,11 +58,10 @@ class DataPembelianLangsungController extends Controller
             $user = Auth::user();
 
             $query = Pembelian::query()
-            ->select(
-                'pembelian.id','pembelian.tanggal','pembelian.kode','pembelian.jumlah','pembelian.operator','pembelian.jt','pembelian.lunas', 'pembelian.visa', 'pembelian.hutang','pembelian.keterangan','pembelian.diskon','pembelian.tax','pembelian.supplier', 'pembelian.return', 'supplier.nama as nama_supplier'
-            )
-            ->leftJoin('supplier', 'pembelian.supplier', '=', 'supplier.kode')
-            ->limit(10);
+                ->select(
+                    'pembelian.id', 'pembelian.tanggal', 'pembelian.kode', 'pembelian.jumlah', 'pembelian.operator', 'pembelian.jt', 'pembelian.lunas', 'pembelian.visa', 'pembelian.hutang', 'pembelian.keterangan', 'pembelian.diskon', 'pembelian.tax', 'pembelian.supplier', 'pembelian.return', 'supplier.nama as nama_supplier'
+                )
+                ->leftJoin('supplier', 'pembelian.supplier', '=', 'supplier.kode');
 
             if ($dateTransaction) {
                 $query->whereDate('pembelian.tanggal', '=', $dateTransaction);
@@ -75,20 +75,20 @@ class DataPembelianLangsungController extends Controller
                 $query->where('pembelian.supplier', 'like', '%' . $supplier . '%');
             }
 
-            if($viewAll === false || $viewAll === "false") {
-                // $query->whereDate('pembelian.tanggal', '=', $today);
+            if ($viewAll !== 'false') {
+                // Jika viewAll tidak false, batasi hasil berdasarkan bulan ini
                 $query->whereBetween('pembelian.tanggal', [$startOfMonth, $endOfMonth]);
             }
 
             $pembelians = $query
-            ->where(function ($query) use ($user) {
-                if ($user->role !== 1) {
-                    $query->whereRaw('LOWER(pembelian.operator) like ?', [strtolower('%' . $user->name . '%')]);
-                } 
-            })
-            ->where('pembelian.po', '=', 'False')
-            ->orderByDesc('pembelian.id')
-            ->paginate(10);
+                ->where(function ($query) use ($user) {
+                    if ($user->role !== 1) {
+                        $query->whereRaw('LOWER(pembelian.operator) like ?', [strtolower('%' . $user->name . '%')]);
+                    }
+                })
+                ->where('pembelian.po', '=', 'False')
+                ->orderByDesc('pembelian.id')
+                ->paginate(10);
 
             return new ResponseDataCollect($pembelians);
 
@@ -96,6 +96,9 @@ class DataPembelianLangsungController extends Controller
             throw $th;
         }
     }
+
+
+
 
     /**
      * Show the form for creating a new resource.
@@ -128,7 +131,7 @@ class DataPembelianLangsungController extends Controller
             $data = $request->all();
 
             $barangs = $data['barangs'];
-            
+
             $dataBarangs = json_decode($barangs, true);
 
             $currentDate = now()->format('ymd');
@@ -167,7 +170,7 @@ class DataPembelianLangsungController extends Controller
             $newPembelian->diterima = intval($data['bayar']) !== 0 ? $data['diterima'] : $data['bayar'];
 
             if($data['showDp'] === 'true') {
-                $kembali = 0;              
+                $kembali = 0;
             } else {
                 if(intval($data['bayar']) >= intval($data['jumlah'])) {
                     $kembali = intval($data['bayar']) - intval($data['jumlah']);
@@ -175,7 +178,7 @@ class DataPembelianLangsungController extends Controller
                     $kembali = 0;
                 } else {
                     $kembali = intval($data['jumlah']) - intval($data['bayar']);
-                }  
+                }
             }
             $newPembelian->kembali = $kembali;
 
@@ -199,9 +202,9 @@ class DataPembelianLangsungController extends Controller
                 // Masuk ke hutang
                 $dataPerusahaan = SetupPerusahaan::with('tokos')->findOrFail(1);
                 $masuk_hutang = new Hutang;
-                $masuk_hutang->kode = $dataPerusahaan->kd_bayar_hutang. '-'. $currentDate . $randomNumber;
+                $masuk_hutang->kode = $dataPerusahaan->kd_bayar_hutang. '-'. $newPembelian->tanggal . $randomNumber;
                 $masuk_hutang->kd_beli = $data['ref_code'];
-                $masuk_hutang->tanggal = $currentDate;
+                $masuk_hutang->tanggal = $newPembelian->tanggal;
                 $masuk_hutang->supplier = $supplier->kode;
                 // if(intval($data['biayabongkar']) > 0) {
                 //     $jumlahHutang = intval($data['bayar'])
@@ -216,7 +219,7 @@ class DataPembelianLangsungController extends Controller
                 $item_hutang->kode = $masuk_hutang->kode;
                 $item_hutang->kd_beli = $data['ref_code'];
                 $item_hutang->kode_hutang = $masuk_hutang->kode;
-                $item_hutang->tgl_hutang = $currentDate;
+                $item_hutang->tgl_hutang = $masuk_hutang->tanggal;
                 $item_hutang->jumlah_hutang = $masuk_hutang->jumlah;
                 $item_hutang->jumlah = $masuk_hutang->jumlah;
                 $item_hutang->save();
@@ -240,9 +243,9 @@ class DataPembelianLangsungController extends Controller
                 $angsuran->save();
 
                 $updateSaldoSupplier = Supplier::findOrFail($supplier->id);
-                $updateSaldoSupplier->saldo_hutang = intval($data['bayar']) !== 0 ? $supplier->saldo_hutang + $data['hutang'] : $supplier->saldo_hutang + $data['diterima'];
+                $updateSaldoSupplier->saldo_hutang = $supplier->saldo_hutang + $data['hutang'];
                 $updateSaldoSupplier->save();
-            } else {            
+            } else {
                 $newPembelian->lunas = $data['pembayaran'] == 'cash' ? "True" : "False";
                 $newPembelian->visa = "LUNAS";
                 $newPembelian->hutang = $data['hutang'];
@@ -275,7 +278,7 @@ class DataPembelianLangsungController extends Controller
                 $updateKas = Kas::findOrFail($data['kode_kas']);
                 $updateKas->saldo = intval($data['bayar']) !== 0 ? intval($updateKas->saldo) - $data['bayar'] : intval($updateKas->saldo) - intval($data['jumlah']);
                 $updateKas->save();
-            } else {                
+            } else {
                 $diterima = intval($newPembelian->diterima);
                 $updateKas = Kas::findOrFail($data['kode_kas']);
                 $updateKas->saldo = intval($updateKas->saldo) - intval($data['jumlah']);
@@ -359,7 +362,7 @@ class DataPembelianLangsungController extends Controller
             $barangs = $query->get();
             $pembelian = $query->get()[0];
 
-            foreach($barangs as $barang) {            
+            foreach($barangs as $barang) {
                 $orders = PurchaseOrder::where('kode_po', $kode)
                 ->where('kode_barang', $barang->kode_barang)
                 ->get()->sum('qty');
@@ -458,7 +461,7 @@ class DataPembelianLangsungController extends Controller
             }
 
             // echo "<pre>";
-            // var_dump($data); 
+            // var_dump($data);
             // echo "</pre>";
             // die;
 
@@ -475,18 +478,18 @@ class DataPembelianLangsungController extends Controller
             }
 
             $currentDate = now()->format('ymd');
-            
+
             $updatePembelian = Pembelian::findOrFail($id);
 
             $kas = Kas::whereKode($data['kode_kas'])->first();
-            
+
             if(intval($kas->saldo) < $diterima) {
                 return response()->json([
                     'error' => true,
                     'message' => "Saldo tidak mencukupi!!"
                 ]);
             }
-            
+
             $updatePembelian->draft = 0;
             $updatePembelian->kode_kas = $kas->kode;
             $updatePembelian->jumlah = $data['total'] ? $total : $updatePembelian->jumlah;
@@ -567,7 +570,7 @@ class DataPembelianLangsungController extends Controller
 
            $userRole = Roles::findOrFail($user->role);
 
-           if($userRole->name === "MASTER" || $userRole->name === "ADMIN") {                
+           if($userRole->name === "MASTER" || $userRole->name === "ADMIN") {
                 // $delete_pembelian = Pembelian::whereNull('deleted_at')
                 // ->findOrFail($id);
             $delete_pembelian = Pembelian::findOrFail($id);
@@ -579,27 +582,27 @@ class DataPembelianLangsungController extends Controller
                 $delete_hutang->delete();
 
                 $hutangItems = ItemHutang::where('kode', $delete_pembelian->kode)->get();
-                foreach($hutangItems as $itemHutang) {                    
+                foreach($hutangItems as $itemHutang) {
                     $deleteItemHutang = ItemHutang::findOrFail($itemHutang->id);
                     $deleteItemHutang->delete();
                 }
 
                 $angsuranItems = PembayaranAngsuran::where('kode', $delete_pembelian->kode)->get();
-                foreach($angsuranItems as $itemAngsuran) {                    
+                foreach($angsuranItems as $itemAngsuran) {
                     $deleteAngsuran = PembayaranAngsuran::findOrFail($itemAngsuran->id);
                     $deleteAngsuran->delete();
                 }
             }
-            
+
             $delete_pembelian->delete();
 
             $pembelianItems = ItemPembelian::where('kode', $delete_pembelian->kode)->get();
-            foreach($pembelianItems as $itemPembelian) {                
+            foreach($pembelianItems as $itemPembelian) {
                 $deleteItem = ItemPembelian::findOrFail($itemPembelian->id);
                 $deleteItem->delete();
 
                 $dataBarangs = Barang::where('kode', $itemPembelian->kode_barang)->get();
-                foreach($dataBarangs as $barang) {                        
+                foreach($dataBarangs as $barang) {
                     $updateStokBarang = Barang::findOrFail($barang->id);
                     $updateStokBarang->toko = $barang->toko - $itemPembelian->qty;
                     $updateStokBarang->last_qty = $barang->toko;

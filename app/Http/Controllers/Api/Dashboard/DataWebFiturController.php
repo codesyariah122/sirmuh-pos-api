@@ -17,19 +17,19 @@ use App\Exports\CampaignDataExport;
 use Maatwebsite\Excel\Facades\Excel;
 use App\Helpers\ContextData;
 use App\Models\{
-    User, 
-    Roles, 
-    Bank, 
-    Barang, 
-    ItemPenjualan, 
-    SatuanBeli, 
-    SatuanJual, 
-    Pembelian, 
-    ItemPembelian, 
-    Supplier, 
-    Penjualan, 
-    Pelanggan, 
-    Perusahaan, 
+    User,
+    Roles,
+    Bank,
+    Barang,
+    ItemPenjualan,
+    SatuanBeli,
+    SatuanJual,
+    Pembelian,
+    ItemPembelian,
+    Supplier,
+    Penjualan,
+    Pelanggan,
+    Perusahaan,
     SetupPerusahaan,
     Kas,
     FakturTerakhir,
@@ -148,7 +148,7 @@ class DataWebFiturController extends Controller
             });
 
             return response()->json([
-                'success' => true, 
+                'success' => true,
                 'message' => 'Grafik Penjualan Weekly',
                 'label' => 'Total Jumlah Penjualan',
                 'data' => $chartData
@@ -208,7 +208,7 @@ class DataWebFiturController extends Controller
                     })
                     ->with('roles')
                     ->paginate(10);
-                } else {                
+                } else {
                     $deleted = User::onlyTrashed()
                     ->where('role', '>', 2)
                     ->with('profiles', function($profile) {
@@ -650,8 +650,8 @@ class DataWebFiturController extends Controller
                 ->findOrFail($id);
 
                 $file_path = $deleted->photo;
-                
-                if($file_path !== NULL) {                    
+
+                if($file_path !== NULL) {
                     if (Storage::disk('public')->exists($file_path)) {
                         Storage::disk('public')->delete($file_path);
                     }
@@ -772,7 +772,7 @@ class DataWebFiturController extends Controller
                 $updateKas = Kas::findOrFail($kas->id);
                 $updateKas->saldo = intval($kas->saldo) + intval($deleted->jumlah);
                 $updateKas->save();
-                
+
                 $items = ItemPembelian::whereKode($deleted->kode)->get();
                 foreach($items as $item) {
                     $barangs = Barang::whereKode($item->kode_barang)->get();
@@ -846,7 +846,7 @@ class DataWebFiturController extends Controller
                 }
 
                 ItemPembelian::whereKode($deleted->kode)->forceDelete();
-                
+
                 $deleted->forceDelete();
 
                 $message = "Data pembelian, {$deleted->kode} has permanently deleted !";
@@ -1049,7 +1049,7 @@ class DataWebFiturController extends Controller
                 ->orderBy('toko')
                 ->limit(5)
                 ->get();
-                
+
                 $sendResponse = [
                     'type' => 'TOTAL_BARANG',
                     'message' => 'Total data barang',
@@ -1160,7 +1160,7 @@ class DataWebFiturController extends Controller
             ->findOrFail($user_id);
 
             $user_photo = $update_user->photo;
-            
+
             $image = $request->file('photo');
 
             if ($image !== '' && $image !== NULL) {
@@ -1182,7 +1182,7 @@ class DataWebFiturController extends Controller
 
                 Image::make($thumbImage)->save($thumbPath);
                 $new_profile = User::findOrFail($update_user->id);
-                
+
                 $new_profile->photo = "thumbnail_images/users/" . $filenametostore;
                 $new_profile->save();
 
@@ -1484,7 +1484,7 @@ class DataWebFiturController extends Controller
         ->get();
 
         var_dump($penjualanHarian); die;
-        
+
     }
 
     public function loadForm($diskon, $ppn, $total)
@@ -1517,7 +1517,7 @@ class DataWebFiturController extends Controller
         $randomNumber = sprintf('%05d', mt_rand(0, 99999));
 
         switch($type) {
-            case "pembelian-langsung": 
+            case "pembelian-langsung":
             $generatedCode = $perusahaan->kd_pembelian .'-'. $currentDate . $randomNumber;
             break;
             case "purchase-order":
@@ -1642,8 +1642,8 @@ class DataWebFiturController extends Controller
             $type = $request->type;
 
             switch($type) {
-               case "pembelian":
-               foreach ($barangs as $barang) {
+             case "pembelian":
+             foreach ($barangs as $barang) {
                 $updateBarang = Barang::findOrFail($barang['id']);
                 if($barang['qty'] > $updateBarang->last_qty){
                     $bindStok = $barang['qty'] + $updateBarang->last_qty;
@@ -1742,8 +1742,8 @@ public function edit_stok_data_barang(Request $request)
         $type = $request->type;
 
         switch($type) {
-           case "pembelian":
-           foreach ($barangs as $barang) {
+         case "pembelian":
+         foreach ($barangs as $barang) {
             $updateBarang = Barang::findOrFail($barang['id']);
                 // if($barang['qty'] > $updateBarang->last_qty){
                 //     $newStok = $updateBarang->toko + $barang['qty'];
@@ -1807,8 +1807,8 @@ public function update_stok_barang_all(Request $request)
         $type = $request->type;
 
         switch($type) {
-           case "pembelian":
-           foreach ($barangs as $barang) {
+         case "pembelian":
+         foreach ($barangs as $barang) {
             $updateBarang = Barang::findOrFail($barang['id']);
                 // if($barang['qty'] > $updateBarang->last_qty){
                 //     $newStok = $updateBarang->toko + $barang['qty'];
@@ -2129,6 +2129,9 @@ public function delete_item_pembelian_po($id)
         $udpateDataPembelian = Pembelian::findOrFail($dataPembelian->id);
         $udpateDataPembelian->diterima = 0;
         $udpateDataPembelian->jt = 0;
+        $udpateDataPembelian->sisa_dp = 0;
+        $udpateDataPembelian->jumlah = intval($dataPembelian->jumlah) + intval($dataPembelian->biayabongkar);
+        $udpateDataPembelian->biayabongkar = 0; 
         $udpateDataPembelian->save();
 
         $purchaseOrders = PurchaseOrder::where('kode_barang', $itemPembelian->kode_barang)
@@ -2178,6 +2181,7 @@ public function update_item_penjualan(Request $request)
 
                 $existingItem = ItemPenjualan::where('kode_barang', $dataBarang->kode)
                 ->where('draft', 1)
+                ->where('kode', $kode)
                 ->first();
 
                 if($barang['harga_toko'] !== NULL) {
@@ -2254,7 +2258,15 @@ public function update_item_penjualan(Request $request)
 
                 $existingItem = ItemPenjualan::where('kode_barang', $dataBarang->kode)
                 ->where('draft', 1)
+                ->where('kode', $kode)
                 ->first();
+
+                // $beforeExisting = ItemPenjualan::where('kode_barang', $dataBarang->kode)
+                // ->where('draft', 1)
+                // ->first();
+                // var_dump($beforeExisting); die;
+                // $deletedBeforeExisting = ItemPenjualan::where('kode_barang', $beforeExisting->kode_barang);
+                // $deletedBeforeExisting->delete();
 
                 if($barang['harga_toko'] !== NULL) {
                     $harga = $barang['harga_toko'];
@@ -2331,7 +2343,7 @@ public function update_item_penjualan(Request $request)
     }
 }
 
-public function check_stok_barang(Request $request, $id) 
+public function check_stok_barang(Request $request, $id)
 {
     try {
         $barang = Barang::findOrFail($id);
@@ -2449,7 +2461,7 @@ public function delete_item_penjualan_po($id)
     }
 }
 
-public function check_saldo(Request $request, $id) 
+public function check_saldo(Request $request, $id)
 {
     try {
         $entitas = intval($request->entitas);
@@ -2478,18 +2490,18 @@ public function update_faktur_terakhir(Request $request)
             $updateFakturTerakhir->save();
 
         } else {
-           $updateFakturTerakhir = FakturTerakhir::whereFaktur($request->faktur)
-           ->first();
-           $updateFakturTerakhir->faktur = $request->faktur;
-           $updateFakturTerakhir->tanggal = $today;
-           $updateFakturTerakhir->save();
+         $updateFakturTerakhir = FakturTerakhir::whereFaktur($request->faktur)
+         ->first();
+         $updateFakturTerakhir->faktur = $request->faktur;
+         $updateFakturTerakhir->tanggal = $today;
+         $updateFakturTerakhir->save();
 
-       }
-       return response()->json([
+     }
+     return response()->json([
         'success' => true,
         'message' => 'Faktur terakhir terupdate!'
     ], 200);
-   } catch (\Throwable $th) {
+ } catch (\Throwable $th) {
     throw $th;
 }
 }
@@ -2501,7 +2513,7 @@ public function check_roles_access()
 
         $userRole = Roles::findOrFail($user->role);
 
-        if ($userRole->name !== "MASTER" && $userRole->name !== "ADMIN" && $userRole->name !== "KASIR" && $userRole->name !== "GUDANG" && $userRole->name !== "KASIR_GUDANG") { 
+        if ($userRole->name !== "MASTER" && $userRole->name !== "ADMIN" && $userRole->name !== "KASIR" && $userRole->name !== "GUDANG" && $userRole->name !== "KASIR_GUDANG") {
             return response()->json([
                 'error' => true,
                 'message' => 'Hak akses tidak di ijinkan 🚫'
@@ -2524,7 +2536,7 @@ public function check_password_access()
 
         $userRole = Roles::findOrFail($user->role);
 
-        if ($userRole->name !== "MASTER") { 
+        if ($userRole->name !== "MASTER") {
             return response()->json([
                 'error' => true,
                 'message' => 'Hak akses tidak di ijinkan 🚫'

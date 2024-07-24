@@ -34,26 +34,26 @@ class DataPenjualanTokoController extends Controller
     public function index(Request $request)
     {
         try {
-         $keywords = $request->query('keywords');
-         $today = now()->toDateString();
-         $now = now();
-         $startOfMonth = $now->startOfMonth()->toDateString();
-         $endOfMonth = $now->endOfMonth()->toDateString();
-         $pelanggan = $request->query('pelanggan');
-         $dateTransaction = $request->query('date_transaction');
-         $viewAll = $request->query('view_all');
-         $user = Auth::user();
+           $keywords = $request->query('keywords');
+           $today = now()->toDateString();
+           $now = now();
+           $startOfMonth = $now->startOfMonth()->toDateString();
+           $endOfMonth = $now->endOfMonth()->toDateString();
+           $pelanggan = $request->query('pelanggan');
+           $dateTransaction = $request->query('date_transaction');
+           $viewAll = $request->query('view_all');
+           $user = Auth::user();
 
-         $query = Penjualan::query()
-         ->select(
+           $query = Penjualan::query()
+           ->select(
             'penjualan.id','penjualan.tanggal', 'penjualan.kode', 'penjualan.pelanggan','penjualan.keterangan', 'penjualan.kode_kas', 'penjualan.jumlah','penjualan.bayar', 'penjualan.dikirim', 'penjualan.diskon', 'penjualan.lunas','penjualan.operator', 'penjualan.receive', 'penjualan.biayakirim','penjualan.status', 'penjualan.return', 'kas.nama as nama_kas', 'pelanggan.nama as nama_pelanggan'
         )
-         ->leftJoin('kas', 'penjualan.kode_kas', '=', 'kas.kode')
-         ->leftJoin('pelanggan', 'penjualan.pelanggan', '=', 'pelanggan.kode')
-         ->where('jenis', 'PENJUALAN TOKO')
-         ->limit(10);
+           ->leftJoin('kas', 'penjualan.kode_kas', '=', 'kas.kode')
+           ->leftJoin('pelanggan', 'penjualan.pelanggan', '=', 'pelanggan.kode')
+           ->where('jenis', 'PENJUALAN TOKO')
+           ->limit(10);
 
-         if ($dateTransaction) {
+           if ($dateTransaction) {
             $query->whereDate('penjualan.tanggal', '=', $dateTransaction);
         }
 
@@ -74,7 +74,7 @@ class DataPenjualanTokoController extends Controller
         ->where(function ($query) use ($user) {
             if ($user->role !== 1) {
                 $query->whereRaw('LOWER(penjualan.operator) like ?', [strtolower('%' . $user->name . '%')]);
-            } 
+            }
         })
         ->where('penjualan.po', '=', 'False')
         ->orderByDesc('penjualan.id')
@@ -119,7 +119,7 @@ class DataPenjualanTokoController extends Controller
             $data = $request->all();
             $barangs = $data['barangs'];
             $bayar = $this->helpers->convertCurrencyToInteger($data['bayar']);
-            
+
             $dataBarangs = json_decode($barangs, true);
 
             $currentDate = now()->format('ymd');
@@ -162,13 +162,13 @@ class DataPenjualanTokoController extends Controller
             $newPenjualanToko->draft = $data['draft'] ? 1 : 0;
             $newPenjualanToko->kode_kas = $kas->kode;
             $newPenjualanToko->diskon = $request->diskon;
-            
+
             if(isset($data['jumlah']) && is_numeric($data['jumlah'])) {
                 $newPenjualanToko->jumlah = $data['jumlah'];
             } else {
                 $newPenjualanToko->jumlah = 0;
             }
-            
+
             $newPenjualanToko->bayar = $bayar;
 
 
@@ -236,9 +236,9 @@ class DataPenjualanTokoController extends Controller
                 $updateSaldoPelanggan->save();
             } else {
                 if($bayar >= intval($data['jumlah'])) {
-                   $newPenjualanToko->visa = "LUNAS";
-                   $newPenjualanToko->kembali = $bayar - intval($data['jumlah']);
-               } else {
+                 $newPenjualanToko->visa = "LUNAS";
+                 $newPenjualanToko->kembali = $bayar - intval($data['jumlah']);
+             } else {
                 $newPenjualanToko->visa = "LUNAS";
                 $newPenjualanToko->kembali = intval($data['jumlah']) - $bayar;
             }
@@ -258,6 +258,10 @@ class DataPenjualanTokoController extends Controller
             $newPenjualanToko->receive = $data['status_kirim'] !== "PROSES" ? "True" : "False";
             $newPenjualanToko->jt = $data['jt'] ?? 0;
             $newPenjualanToko->status = $data['status_kirim'] ? $data['status_kirim'] : 'PROSES';
+
+            $updateKas = Kas::findOrFail($kas->id);
+            $updateKas->saldo = $kas->saldo - intval($data['ongkir']);
+            $updateKas->save();
         }
         $newPenjualanToko->return = "False";
         $newPenjualanToko->jenis = "PENJUALAN TOKO";
@@ -267,11 +271,11 @@ class DataPenjualanTokoController extends Controller
 
         $newPenjualanToko->save();
 
-        $updateDrafts = ItemPenjualan::whereKode($newPenjualanToko->kode)->get();
-        foreach($updateDrafts as $idx => $draft) {
-            $updateDrafts[$idx]->draft = 0;
-            $updateDrafts[$idx]->save();
-        }
+        // $updateDrafts = ItemPenjualan::whereKode($newPenjualanToko->kode)->get();
+        // foreach($updateDrafts as $idx => $draft) {
+        //     $updateDrafts[$idx]->draft = 0;
+        //     $updateDrafts[$idx]->save();
+        // }
 
         $dikirim = intval($newPenjualanToko->bayar);
         $updateKas = Kas::findOrFail($data['kode_kas']);
@@ -312,38 +316,35 @@ class DataPenjualanTokoController extends Controller
         $simpanFaktur->tanggal = $newPenjualanData->tanggal;
         $simpanFaktur->save();
 
-            // $pemasukanPenjualan = new PemasukanPenjualan;
-            // $pemasukanPenjualan->tanggal = $newPenjualanToko->tanggal;
-            // $pemasukanPenjualan->kd_transaksi = $newPenjualanToko->kode;
-            // $pemasukanPenjualan->keterangan = $newPenjualanToko->keterangan;
-            // $pemasukanPenjualan->kode_kas = $newPenjualanToko->kode_kas;
-            // $pemasukanPenjualan->jumlah = $newPenjualanToko->jumlah;
-            // $pemasukanPenjualan->operator = $newPenjualanToko->operator;
-            // $pemasukanPenjualan->pelanggan = $newPenjualanToko->pelanggan;
-            // $pemasukanPenjualan->save();
-                // $perusahaan = SetupPerusahaan::with('tokos')->findOrFail(1);
-                // $pemasukan = new Pemasukan;
-                // $pemasukan->kode = $newPenjualanToko->kode;
-                // $pemasukan->tanggal = $newPenjualanToko->tanggal;
-                // $pemasukan->kd_biaya = $perusahaan->kd_penjualan_toko;
-                // $pemasukan->keterangan = "PENJUALAN TOKO";
-                // $pemasukan->kode_kas = $newPenjualanToko->kode_kas;
-                // $pemasukan->jumlah = $newPenjualanToko->jumlah;
-                // $pemasukan->operator = $newPenjualanToko->operator;
-                // $pemasukan->kode_pelanggan = $pelanggan->kode;
-                // $pemasukan->nama_pelanggan = $pelanggan->nama;
-                // $pemasukan->save();
+        $pemasukanPenjualan = new PemasukanPenjualan;
+        $pemasukanPenjualan->tanggal = $newPenjualanToko->tanggal;
+        $pemasukanPenjualan->kd_transaksi = $newPenjualanToko->kode;
+        $pemasukanPenjualan->keterangan = $newPenjualanToko->keterangan;
+        $pemasukanPenjualan->kode_kas = $newPenjualanToko->kode_kas;
+        $pemasukanPenjualan->jumlah = $newPenjualanToko->jumlah;
+        $pemasukanPenjualan->operator = $newPenjualanToko->operator;
+        $pemasukanPenjualan->pelanggan = $newPenjualanToko->pelanggan;
+        $pemasukanPenjualan->save();
+        $perusahaan = SetupPerusahaan::with('tokos')->findOrFail(1);
+        $pemasukan = new Pemasukan;
+        $pemasukan->kode = $newPenjualanToko->kode;
+        $pemasukan->tanggal = $newPenjualanToko->tanggal;
+        $pemasukan->kd_biaya = $perusahaan->kd_penjualan_toko;
+        $pemasukan->keterangan = "PENJUALAN TOKO";
+        $pemasukan->kode_kas = $newPenjualanToko->kode_kas;
+        $pemasukan->jumlah = $newPenjualanToko->jumlah;
+        $pemasukan->operator = $newPenjualanToko->operator;
+        $pemasukan->kode_pelanggan = $pelanggan->kode;
+        $pemasukan->nama_pelanggan = $pelanggan->nama;
+        $pemasukan->save();
 
 
-        if($data['status_kirim'] === "DIKIRIM") {     
+        if($data['status_kirim'] === "DIKIRIM") {
             $dataItemPenjualan = ItemPenjualan::whereKode($newPenjualanToko->kode)->first();
             $updateItem = ItemPenjualan::findOrFail($dataItemPenjualan->id);
             $updateItem->qty_terima = $dataItemPenjualan->qty;
             $updateItem->diskon = $newPenjualanToko->diskon;
-            $updateItem->save();              
-            $updateKas = Kas::findOrFail($kas->id);
-            $updateKas->saldo = $kas->saldo - intval($data['ongkir']);
-            $updateKas->save();
+            $updateItem->save();
         }
 
         $newPenjualanTokoSaved =  Penjualan::query()
@@ -368,6 +369,12 @@ class DataPenjualanTokoController extends Controller
         ];
 
         event(new EventNotification($data_event));
+
+        $updateDrafts = ItemPenjualan::whereKode($newPenjualanToko->kode)->get();
+        foreach($updateDrafts as $idx => $draft) {
+            $updateDrafts[$idx]->draft = 0;
+            $updateDrafts[$idx]->save();
+        }
 
         $historyKeterangan = "{$userOnNotif->name}, berhasil melakukan transaksi penjualan toko [{$newPenjualanToko->kode}], sebesar {$this->helpers->format_uang($newPenjualanToko->jumlah)}";
         $dataHistory = [
@@ -551,7 +558,7 @@ public function cetak_nota($type, $kode, $id_perusahaan)
             $updatePembelian->kode_kas = $kas->kode;
             $currentDate = now()->format('ymd');
 
-            
+
             if($data['piutang']) {
                 $updatePembelian->angsuran = $data['bayar'] ? $data['bayar'] : $data['bayarDp'];
                 $updatePembelian->lunas = "False";
@@ -610,7 +617,7 @@ public function cetak_nota($type, $kode, $id_perusahaan)
                     $updatePembelian->kembali = $updatePembelian->jumlah - $data['bayar'];
                     $updatePembelian->lunas = "True";
                 }
-                
+
             }
 
             $updatePembelian->save();
@@ -618,7 +625,7 @@ public function cetak_nota($type, $kode, $id_perusahaan)
             $updateFakturTerakhir = FakturTerakhir::findOrFail($dataFaktur->id);
             $updateFakturTerakhir = $currentDate;
             $updateFakturTerakhir->save();
-            
+
             $updateKas = Kas::findOrFail($kas->id);
             $updateKas->saldo = intval($kas->saldo) - intval($data['bayar']);
             $updateKas->save();
@@ -668,11 +675,11 @@ public function cetak_nota($type, $kode, $id_perusahaan)
     public function destroy($id)
     {
         try {
-           $user = Auth::user();
+         $user = Auth::user();
 
-           $userRole = Roles::findOrFail($user->role);
+         $userRole = Roles::findOrFail($user->role);
 
-           if($userRole->name === "MASTER" || $userRole->name === "ADMIN") {          
+         if($userRole->name === "MASTER" || $userRole->name === "ADMIN") {
             $deletePenjualan = Penjualan::findOrFail($id);
 
             $dataPiutang = Piutang::where('kode', $deletePenjualan->kode)->first();
@@ -682,13 +689,13 @@ public function cetak_nota($type, $kode, $id_perusahaan)
                 $deletePiutang->delete();
 
                 $hutangItems = ItemPiutang::where('kode', $deletePenjualan->kode)->get();
-                foreach($piutangItems as $itemPiutang) {                    
+                foreach($piutangItems as $itemPiutang) {
                     $deleteItemPiutang = ItemPiutang::findOrFail($itemPiutang->id);
                     $deleteItemPiutang->delete();
                 }
 
                 $angsuranItems = PembayaranAngsuran::where('kode', $deletePenjualan->kode)->get();
-                foreach($angsuranItems as $itemAngsuran) {                    
+                foreach($angsuranItems as $itemAngsuran) {
                     $deleteAngsuran = PembayaranAngsuran::findOrFail($itemAngsuran->id);
                     $deleteAngsuran->delete();
                 }
@@ -697,7 +704,7 @@ public function cetak_nota($type, $kode, $id_perusahaan)
             $deletePenjualan->delete();
 
             $penjualanItems = ItemPenjualan::where('kode', $deletePenjualan->kode)->get();
-            foreach($penjualanItems as $itemPenjualan) {                
+            foreach($penjualanItems as $itemPenjualan) {
                 $deleteItem = ItemPenjualan::findOrFail($itemPenjualan->id);
                 $deleteItem->delete();
 
